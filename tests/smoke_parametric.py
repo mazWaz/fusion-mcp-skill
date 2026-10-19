@@ -1,0 +1,42 @@
+scratch('smoke_parametric')
+c = root()
+for n, v in [('box_w', 42), ('box_d', 28), ('box_h', 16), ('wall_t', 1.6), ('corner_r', 3), ('boss_d', 5),
+             ('boss_inset', 4), ('pilot_d', 1.8), ('pilot_depth', 6), ('mic_d', 6), ('mic_z', 8), ('boss_top', 10), ('usb_w', 9), ('usb_h', 3.5), ('usb_z', 5)]:
+    param(n, v)
+sk = sketch(c, 'xy', 'Outline')
+pcrect(sk, 'box_w', 'box_d')
+print('outline fully', sk.isFullyConstrained)
+b = extrude(c, prof(sk), 'box_h', name='Block').bodies.item(0)
+b.name = 'Enclosure'
+fillet(c, edges(b, along='z'), 'corner_r', name='Corners')
+shell(c, face_end(b, 'z', 'max'), 'wall_t', name='Shell')
+bs = sketch(c, 'xy', 'Bosses', offset='wall_t')
+cr = pcrect(bs, 'box_w - 2*boss_inset', 'box_d - 2*boss_inset', construction=True)
+pcircles(bs, [l.startSketchPoint for l in cr], 'boss_d')
+print('boss sketch fully', bs.isFullyConstrained, 'profiles', bs.profiles.count)
+boss_profiles = [p for p in bs.profiles if abs(p.areaProperties().area - math.pi * 0.25 ** 2) < 1e-4]
+extrude(c, boss_profiles, 'boss_top - wall_t', op='join', name='Bosses')
+ps = sketch(c, 'xy', 'Pilots', offset='boss_top')
+pr = pcrect(ps, 'box_w - 2*boss_inset', 'box_d - 2*boss_inset', construction=True)
+pcircles(ps, [l.startSketchPoint for l in pr], 'pilot_d')
+pil = [p for p in ps.profiles if p.areaProperties().area < math.pi * 0.1 ** 2]
+extrude(c, pil, 'pilot_depth', op='cut', rev=True, name='Pilots')
+ms = sketch(c, 'xz', 'Mic')
+pcircle(ms, 'mic_d', 0, '-mic_z')
+print('mic sketch fully', ms.isFullyConstrained)
+mf = extrude(c, prof(ms, 'smallest'), '-all', op='cut', name='MicHole')
+print('mic cyl y', sorted(set(round(mm(f.pointOnFace)[1], 1) for f in mf.faces if f.geometry.surfaceType == ac.SurfaceTypes.CylinderSurfaceType)))
+us = sketch(c, 'xz', 'USB Outline')
+pcrect(us, 'usb_w', 'usb_h', 0, '-usb_z')
+print('usb sketch fully', us.isFullyConstrained)
+uf = extrude(c, prof(us, 'smallest'), 'all', op='cut', name='USB Cut')
+bb = [f.boundingBox for f in uf.faces]
+print('usb y', round(min(b.minPoint.y for b in bb) * 10, 2), round(max(b.maxPoint.y for b in bb) * 10, 2), 'z', round(min(b.minPoint.z for b in bb) * 10, 2), round(max(b.maxPoint.z for b in bb) * 10, 2))
+report()
+param('usb_z', 6)
+bb = [f.boundingBox for f in uf.faces]
+print('usb z after usb_z=6:', round(min(b.minPoint.z for b in bb) * 10, 2), round(max(b.maxPoint.z for b in bb) * 10, 2))
+param('usb_z', 5)
+param('box_w', 50)
+report()
+param('box_w', 42)

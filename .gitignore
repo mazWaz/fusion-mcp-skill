@@ -1,0 +1,6 @@
+# Generated from Fusion's own API stubs (Autodesk content, ~8 MB) - rebuild locally:
+#   python -I scripts/build_api_ref.py
+api/
+__pycache__/
+*.pyc
+tests/out/
