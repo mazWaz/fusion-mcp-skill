@@ -20,7 +20,7 @@ __all__ = [
     "param", "comp", "plane", "axis", "sketch", "sp", "rect", "crect", "circle", "poly", "rpoly",
     "slot", "arc3", "spline", "text", "num", "dim", "pcrect", "pcircles", "pcircle", "profs", "prof", "prof_at", "extrude", "revolve",
     "fillet", "chamfer", "shell", "mirror", "cpattern", "rpattern", "combine", "move",
-    "rotate", "bodies", "body", "faces", "face_end", "edges", "mm", "look", "material",
+    "rotate", "thread", "thread_fit", "bodies", "body", "faces", "face_end", "edges", "mm", "look", "material",
     "report", "health", "fit", "export", "run_file",
 ]
 
@@ -367,12 +367,20 @@ def _named(f, name):
     return f
 
 
-def extrude(c, profile, dist, op="new", sym=False, taper=0, to=None, rev=False, name=None):
+def _only(inp, only):
+    """Limit a cut/intersect to these bodies (default: every body it touches, in ANY component)."""
+    if only is not None:
+        inp.participantBodies = list(only) if isinstance(only, (list, tuple)) else [only]
+
+
+def extrude(c, profile, dist, op="new", sym=False, taper=0, to=None, rev=False, name=None, only=None):
     """dist: mm (negative = opposite side) | expr | 'all' | '-all' | 'all-both'.
     rev=True flips the side (use with expressions: extrude(c, p, 'pilot_depth', 'cut', rev=True)).
-    sym=True: dist is the full symmetric length. to=face/plane: extrude up to entity."""
+    sym=True: dist is the full symmetric length. to=face/plane: extrude up to entity.
+    only=body/[bodies]: cut/intersect just these (else overlapping bodies of other components too)."""
     ef = c.features.extrudeFeatures
     inp = ef.createInput(coll(profile) if isinstance(profile, (list, tuple)) else profile, OPS[op])
+    _only(inp, only)
     t = vi(taper, "deg") if taper else None
     if to is not None:
         inp.setOneSideExtent(af.ToEntityExtentDefinition.create(to, False), _POS, t)
@@ -391,10 +399,12 @@ def extrude(c, profile, dist, op="new", sym=False, taper=0, to=None, rev=False, 
     return _named(ef.add(inp), name)
 
 
-def revolve(c, profile, ax, angle=360, op="new", sym=False, name=None):
+def revolve(c, profile, ax, angle=360, op="new", sym=False, name=None, only=None):
+    """ax: 'x'|'y'|'z' or a linear entity (e.g. a sketch line on the profile sketch); only: see extrude."""
     rf = c.features.revolveFeatures
     inp = rf.createInput(profile, axis(c, ax), OPS[op])
     inp.setAngleExtent(sym, vi(angle, "deg"))
+    _only(inp, only)
     return _named(rf.add(inp), name)
 
 
@@ -470,6 +480,42 @@ def rotate(c, ents, ax, angle, name=None):
     inp = mf.createInput2(coll(ents))
     inp.defineAsRotate(axis(c, ax), vi(angle, "deg"))
     return _named(mf.add(inp), name)
+
+
+def thread(c, face, desig, internal=False, clr=0, cls=None, name=None):
+    """Modeled ISO metric thread ('M14x2') on a cylindrical face (stud: Ø = major; bore: Ø ~ minor).
+    clr (mm/expr) is offset into this part's flank/root faces for 3D-printed fits (0.1 on each
+    part = 0.2 total). Thread the full cylinder FIRST, then cut lead-ins (see recipes)."""
+    tt = af.ThreadDataQuery.create(False).defaultMetricThreadType
+    info = af.ThreadInfo.create(False, internal, tt, desig, cls or ("6H" if internal else "6g"), True)
+    ti = c.features.threadFeatures.createInput(coll(face), info)
+    ti.isFullLength = True
+    ti.isModeled = True
+    tf = _named(c.features.threadFeatures.add(ti), name)
+    if clr:
+        d = vi(-clr) if isinstance(clr, (int, float)) else vi(f"-({clr})")
+        oi = c.features.offsetFacesFeatures.createInput(list(tf.faces), d)
+        _named(c.features.offsetFacesFeatures.add(oi), name and name + " Clearance")
+    return tf
+
+
+def thread_fit(fixed, moving, pitch, step=2, center=(0, 0)):
+    """Mating modeled threads overlap at most rotations (helix phase), so a plain interference
+    check is meaningless. Spins a temporary copy of `moving` 360 deg about the Z axis through
+    center (x, y mm) and intersects it with `fixed` (read-only safe; pass occurrence bodies).
+    Returns (max_mm3, min_mm3, free_deg, axial_play_mm); a good fit has free_deg > 0."""
+    tm = af.TemporaryBRepManager.get()
+    vols = []
+    for deg in range(0, 360, step):
+        t = tm.copy(moving)
+        m = ac.Matrix3D.create()
+        m.setToRotation(math.radians(deg), V(0, 0, 1), P(*center))
+        tm.transform(t, m)
+        g = tm.copy(fixed)
+        tm.booleanOperation(g, t, af.BooleanTypes.IntersectionBooleanType)
+        vols.append(g.volume * 1000 if g.faces.count else 0.0)
+    free = sum(1 for v in vols if v < 1e-3) * step
+    return max(vols), min(vols), free, free * pitch / 360
 
 
 # ---------- selection ----------

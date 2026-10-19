@@ -11,7 +11,7 @@ A Claude Code skill for driving **Autodesk Fusion** through its local MCP server
 - **Complete API coverage**: a grep-able reference of every Fusion API class, member and enum
   (core, fusion, cam, drawing, electron, sim, volume) generated from Fusion's own type stubs.
 - **Verified gotchas & recipes**: error text -> cause -> fix, and tested raw-API recipes
-  (loft, sweep/pipe, holes, threads, split, construction planes, joints, draft).
+  (loft, sweep/pipe, holes, printed screw threads with fit check, split, construction planes, joints, draft).
 
 ## Install
 
@@ -45,7 +45,7 @@ import fh; importlib.reload(fh); from fh import *
 
 def run(_context: str):
     t = os.path.expanduser('~/.claude/skills/fusion-mcp/tests')
-    for name in ['smoke_helpers', 'smoke_recipes', 'smoke_parametric']:
+    for name in ['smoke_helpers', 'smoke_recipes', 'smoke_parametric', 'smoke_threads']:
         run_file(os.path.join(t, name + '.py'), OUT=os.path.join(t, 'out'))
 ```
 

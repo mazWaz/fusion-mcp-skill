@@ -48,8 +48,8 @@ Raw API (`ac` = adsk.core, `af` = adsk.fusion) stays cm / radians - use `vi()` /
 | sketch | `sketch(c, on, name, offset) sp(sk, x,y,z)->sketch xy  rect(sk,x0,y0,x1,y1) crect(sk,w,h,cx,cy) circle(sk, d, cx, cy)` (d = diameter) `poly(sk, pts, closed) rpoly(sk,n,d,cx,cy) slot(sk,x0,y0,x1,y1,w) arc3 spline text(sk, s, h, x0,y0,x1,y1)` |
 | parametric sketch (fully constrained) | `pcrect(sk, w, h, cx=0, cy=0, construction=False)` rect centred at (cx, cy) -> 4 lines (corners `l.startSketchPoint`); `pcircles(sk, corner_pts, d)` equal circles; `pcircle(sk, d, x, y)` one circle from origin (0 = on axis); `dim(sk, a, b, v, 'h'/'v'/'a')`; `num(expr)` -> mm |
 | profiles | `profs(sk) prof(sk,'largest'/'smallest'/i) prof_at(sk, x, y)` (face sketches also contain the face outline profile) |
-| features | `extrude(c, prof, dist, op='new'/'join'/'cut'/'intersect'/'newcomp', sym, taper, to, rev, name)` dist: mm (negative = other side), expr (`rev=True` flips), `'all' '-all' 'all-both'`; `revolve(c, prof, ax, angle) fillet(c, edges, r) chamfer(c, edges, d) shell(c, faces, t) mirror(c, ents, plane) cpattern(c, ents, ax, n, angle) rpattern(c, ents, d1, n1, s1, d2, n2, s2) combine(c, target, tools, op, keep) move(c, ents, dx,dy,dz) rotate(c, ents, ax, deg)` |
-| select | `bodies(c) body(c, i) faces(b, normal='z'/'-x'/(x,y,z), kind='plane'/'cyl'/..., where=fn) face_end(b, 'z', 'max'/'min') edges(src, kind='line'/'arc'/'circle', along='x'/'y'/'z', where=fn)` |
+| features | `extrude(c, prof, dist, op='new'/'join'/'cut'/'intersect'/'newcomp', sym, taper, to, rev, name)` dist: mm (negative = other side), expr (`rev=True` flips), `'all' '-all' 'all-both'`, `only=[body]` limits a cut to those bodies (else it cuts other components' bodies too); `revolve(c, prof, ax, angle, op, only)` fillet(c, edges, r) chamfer(c, edges, d) shell(c, faces, t) mirror(c, ents, plane) cpattern(c, ents, ax, n, angle) rpattern(c, ents, d1, n1, s1, d2, n2, s2) combine(c, target, tools, op, keep) move(c, ents, dx,dy,dz) rotate(c, ents, ax, deg)` `thread(c, face, 'M14x2', internal, clr)` (modeled, printed-fit clearance) |
+| select | `bodies(c) body(c, i) faces(b, normal='z'/'-x'/(x,y,z), kind='plane'/'cyl'/..., where=fn) face_end(b, 'z', 'max'/'min') edges(src, kind='line'/'arc'/'circle', along='x'/'y'/'z', where=fn)` `thread_fit(fixed, moving, pitch)` (screw fit vs helix phase) |
 | finish | `material(b, 'ABS Plastic') look(b_or_occ, 'Anodized') export(comp_or_occ, 'out/part.step'/.f3d)` (bodies: `.stl/.3mf/.obj`) `run_file(path, **globals)` |
 
 Every feature helper returns the feature (`.bodies.item(0)` for the new body) and accepts `name=`
@@ -77,11 +77,12 @@ face sketches point out of the body, so cuts from them use `'-all'` / negative /
 - Key dimensions are user parameters; bodies, components and features have names.
 - Separate parts = separate components (`comp()`), not just bodies.
 - Exposed edges filleted/chamfered (fillet vertical edges before `shell`); realistic fits
-  (3D print clearance 0.2-0.3 mm; M2 pilot 1.6-1.8 mm; M3 clearance 3.2-3.4 mm).
+  (3D print clearance 0.2-0.3 mm; M2 pilot 1.6-1.8 mm; M3 clearance 3.2-3.4 mm; printed threads:
+  `clr=0.1` per part, lead-in after the thread, `thread_fit` free window > 0).
 - Material/appearance set; timeline healthy; `report()` size equals the spec.
 
 ## When things fail
 Read `reference/gotchas.md` (error text -> cause -> fix) - especially for face sketches, cuts,
 text, parameters, units, components. Advanced features (constrained sketches, loft, sweep/pipe,
-hole/counterbore, threads, split, construction planes, joints, draft): `reference/recipes.md`.
+hole/counterbore, printed screw threads, split, construction planes, joints, draft): `reference/recipes.md`.
 Electronics: `fusion_mcp_electronics_read` (read-only), schemas `resource://mcp.electronics_schema_<class>`.

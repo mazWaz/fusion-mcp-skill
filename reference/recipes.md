@@ -8,7 +8,7 @@ mm via `vi()` / `P()`. Each recipe was run in Fusion 2705; adapt, don't re-deriv
 - Loft between offset sections
 - Sweep / pipe along a path
 - Hole feature (counterbore / countersink / simple) at sketch points
-- Modeled thread on a cylinder (standard designation lookup)
+- Modeled thread on a cylinder: printed screw joints, clearance, lead-in, fit check
 - Split body (e.g. lid / base)
 - Construction planes: angle, midplane, along path
 - Body -> component, joints (rigid / revolute), grounding
@@ -81,20 +81,28 @@ holes = hf.add(hi)
 ```
 Hole direction is into the body from the sketch face (no '-' needed, unlike extrude).
 
-## Modeled thread on a cylinder
+## Modeled thread on a cylinder (3D-printed screw joints)
+Helper: `thread(c, face, 'M14x2', internal=False, clr=0.1)` - stud cylinder = major diameter, socket
+bore ~ minor = major - 1.0825 x pitch (M14x2: 12, M10x1.5: 8.4, M8x1.25: 6.8); lead-in tip radius =
+bore/2 - 0.4; `clr` is offset into this part's thread faces (0.1 on each
+part = 0.2 total for FDM). Order matters (tests/smoke_threads.py):
 ```python
-cyl = faces(b, kind='cyl')[0]
-q = af.ThreadDataQuery.create(False)
-ttype = q.defaultMetricThreadType               # 'ISO Metric profile'
-ok, desig, cls = q.recommendThreadData(cyl.geometry.radius * 2, False, ttype)  # cm diameter; False = external
-info = af.ThreadInfo.create(False, False, ttype, desig, cls, True)
-ti = c.features.threadFeatures.createInput(coll(cyl), info)
-ti.isFullLength = True
-ti.isModeled = True                              # real geometry (for 3D printing); False = cosmetic
-c.features.threadFeatures.add(ti)
+thread(c, cyl_stud, 'M14x2', clr=0.1)                       # 1. thread the FULL stud cylinder
+top = 39.3                                                  # stud tip z (mm)
+sk = sketch(c, 'xz', 'Lead-in')                             # 2. 45 deg lead-in through the teeth
+r0, h = 12 / 2 - 0.4, 14 / 2 + 0.3 - (12 / 2 - 0.4)         #    tip radius below the socket minor
+poly(sk, [sp(sk, r0 - .5, 0, top + .5), sp(sk, r0 + h + .5, 0, top - h - .5), sp(sk, r0 + h + .5, 0, top + .5)])
+revolve(c, prof(sk), 'z', op='cut', only=[stud_body])       #    axis off origin: pass a sketch line
+extrude(c2, prof(bore_sk), 8, 'cut', only=[nut_body])       # 3. socket bore, ONLY the nut body
+extrude(c2, prof(mouth_sk), 0.8, 'cut', only=[nut_body])    #    mouth counterbore Ø major + 0.6 (no chamfer)
+thread(c2, cyl_bore, 'M14x2', internal=True, clr=0.1)
+print(thread_fit(nut_body, stud_body, 2.0))                 # 4. (max, min mm3, free deg, axial play mm)
 ```
-Internal thread: second arg `True` in both calls, on the hole's cylindrical face.
-List sizes: `q.allSizes(ttype)`, `q.allDesignations(ttype, '6')`, `q.allClasses(False, ttype, 'M6x1')`.
+Expect `min = 0` and `free deg > 0` (M14x2 / M8x1.25 with 0.1 + 0.1: ~106-165 deg, ~0.6 mm play).
+Raw API: `af.ThreadDataQuery.create(False)`; `q.recommendThreadData(cm_diameter, isInternal, q.defaultMetricThreadType)`;
+`af.ThreadInfo.create(False, isInternal, ttype, 'M8x1.25', '6g'|'6H', True)`; `threadFeatures.createInput(coll(face), info)`
+with `isFullLength = True`, `isModeled = True` (False = cosmetic). Sizes: `q.allSizes(ttype)` -> `'14.0'`,
+`q.allDesignations(ttype, '14.0')`, `q.allClasses(isInternal, ttype, 'M14x2')`.
 
 ## Split body (lid / base)
 ```python
